@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-db
+spec:
+  template:
+    spec:
+      containers:
+      - name: init-db
+        image: us-central1-docker.pkg.dev/gcp-project-466609/default-repository/init-db:latest
+        env:
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-iam-connection-info
+              key: host
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-admin
+              key: username
+        - name: APP_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-iam-connection-info
+              key: username
+        - name: DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: db-admin
+              key: password
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-iam-connection-info
+              key: dbname
+        - name: REGION
+          valueFrom:
+            secretKeyRef:
+              name: project-metadata
+              key: region
+        - name: PROJECT_ID
+          valueFrom:
+            secretKeyRef:
+              name: project-metadata
+              key: projectid
+        resources:
+          limits:
+            cpu: "1"
+            ephemeral-storage: 1Gi
+            memory: 2Gi
+          requests:
+            cpu: "1"
+            ephemeral-storage: 1Gi
+            memory: 2Gi
+      restartPolicy: Never

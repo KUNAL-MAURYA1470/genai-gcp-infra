@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbotapi
+spec:
+  selector:
+    matchLabels:
+      app: chatbotapi
+  template:
+    metadata:
+      labels:
+        app: chatbotapi
+    spec:
+      # Service account associated with IAM service account
+      serviceAccountName: "app-sa"
+      containers:
+      - name: chatbotapi
+        image: us-central1-docker.pkg.dev/gcp-project-466609/default-repository/chatbotapi:latest
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "1"
+            ephemeral-storage: 1Gi
+            memory: 2Gi
+          requests:
+            cpu: "1"
+            ephemeral-storage: 1Gi
+            memory: 2Gi
+        env:
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-iam-connection-info
+              key: host
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-iam-connection-info
+              key: username
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-iam-connection-info
+              key: dbname
+        - name: REGION
+          valueFrom:
+            secretKeyRef:
+              name: project-metadata
+              key: region
+        - name: PROJECT_ID
+          valueFrom:
+            secretKeyRef:
+              name: project-metadata
+              key: projectid
