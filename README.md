@@ -1,13 +1,16 @@
-# Deploy a production ready GenAI app 
+# GenAI App Deployment on GCP using Terraform
 
 ![name](System-Architecture.png)
 
-Here is a jump start solution of how to build a basic chatbot API that:
+This project demonstrates how to build and deploy a basic Generative AI chatbot API using GCP services and Terraform.
 
-- Leverages GKE, Cloud SQL, VertexAI, and pgvector
-- Demonstrates connectivity to Cloud SQL using Private Service Connect in a VPC
-- Codifies all infrastructure including using Terraform
-- Uses Python with asyncpg and FastAPI
+## 📌 Key Features
+
+- ⚙️ Infrastructure as Code with **Terraform**
+- 🚀 Deploys a FastAPI-based chatbot on **GKE**
+- 🔐 Connects securely to **Cloud SQL (PostgreSQL + pgvector)** using **Private Service Connect**
+- 🧠 Uses **Vertex AI APIs** for text embedding and LLM responses
+- 🐍 Developed with **Python**, **FastAPI**, and **asyncpg**
 
 ## Installation and Setup
 
@@ -22,7 +25,7 @@ To get started you will need to install:
 gcloud config set project <PROJECT_ID>
 ```
 
-## Overview of the jump start solution
+## Overview 
 
 There are a few steps:
 
@@ -40,17 +43,12 @@ local configuration outside of source control. The file should provide values
 for the variables in `variables.tf`. For example:
 
 ```sh
-google_cloud_project        = "my-cool-project"
+google_cloud_project        = "gcp-project-name"
 google_cloud_default_region = "us-central1"
 ```
-
-The project name should be an existing project. The region name should be the
-region you want to deploy your infrastructure in. If you don't set a region,
-"us-central1" will be the default. These settings are for the GCS bucket that
+These settings are for the GCS bucket that
 will hold all Terraform state files.
 
-Next, run the following to see what changes will be made. You should see a
-diff that includes a single storage bucket.
 
 ```sh
 terraform init
@@ -69,7 +67,7 @@ where we will tell the main Terraform deployment where to save state. The
 `tf output` command should show something like:
 
 ```sh
-storage_bucket = "2963768bbef6caf7-bucket-tfstate"
+storage_bucket = "...-bucket-tfstate"
 ```
 
 ### Create the infrastructure
@@ -87,44 +85,36 @@ prefix = "terraform/state"
 Next, run:
 
 ```sh
-tf init -backend-config=backend.conf
+terraform init -backend-config=backend.conf
 ```
 
-Then, create a `terraform.tfvars` file to configure the deployment. The contents
-should look something like this:
-
+Then, create a `terraform.tfvars` file to configure the deployment. 
 ```sh
-google_cloud_db_project     = "my-cool-project"
-google_cloud_k8s_project    = "my-cool-project"
+google_cloud_db_project     = "gcp-project-name"
+google_cloud_k8s_project    = "gcp-project-name"
 google_cloud_default_region = "us-central1"
 create_bastion              = false
 ```
 
-If you want to put your GKE cluster and Cloud SQL instance in separate
-projects, use different project names. Otherwise, by using the same value for
-both variables, both the GKE cluster and Cloud SQL instance will be created in
-one project.
+
+Now that the configuration is done, you can create the infrastructure by running. 
+```sh
+ tf apply. 
+```
+This will take a few minutes because Terraform will:
+
+- Set up a VPC with required subnet ranges
+- Create a Cloud SQL instance with IAM authentication
+- Provision a GKE Autopilot cluster
+- Set up an IAM user for app access and DB authentication
+- Create a database for the application
+- Configure Workload Identity for secure access
+- Create an Artifact Registry for Docker images
+- And other necessary resources
 
 
 
-Now, with the configuration out of the way, we're ready to create some
-infrastructure. Run `tf apply`. This will take awhile as it has to:
-
-- Create a VPC network with a subnet with both a primary range and two
-  secondary ranges
-- Create a Cloud SQL database instance with IAM authentication enabled
-- Create an IAM user for running apps and authenticating to the database
-- Create a database for the app
-- Create a GKE autopilot cluster
-- Configure workload identity associated with the IAM user
-- Create an Artifact Registry for pushing images
-- When using two projects, add the IAM user as a member of the database
-  project
-- etc.
-
-
-
-### Build some app images
+### Build app images
 
 There are three images we need to build:
 
@@ -150,18 +140,18 @@ We have three steps:
    minutes)
 3. Deploy the `chatbot-api` app (deployment + service) and interact with it.
 
-Before we deploy anything, we need to update the Kubernetes YAML files to point
-to the images we built above. Right now if you look in any of the job.yaml or
-deployment.yaml files, you'll see the image has a `__PROJECT__` and `__REGION__`
-string in the `image` property. We need to change this. Fortunately, we have a
-script to do this for us. 
+Before deploying, we need to update the Kubernetes YAML files to use the correct image paths.
+
+Currently, the image fields in job.yaml and deployment.yaml contain placeholders like __PROJECT__ and __REGION__.
+
+To fix this, just run the provided script — it will automatically replace those placeholders with your actual project ID and region.
 
 ```sh
 ./scripts/configure-k8s.sh <YOUR_PROJECT_HERE> <YOUR_CHOSEN_REGION>
 
 # For example:
 
-./scripts/configure-k8s.sh my-cool-project us-central1
+./scripts/configure-k8s.sh gcp-project-name us-central1
 ```
 
 Now let's connect kubectl to your cluster:
@@ -175,26 +165,26 @@ gcloud container clusters get-credentials prod-toy-store-semantic-search \
     --region=<COMPUTE_REGION>
 ```
 
-Once that's done, we should be good to deploy.
+Once that's done, we're ready to deploy.
 
-First, we will deploy the init-db job that connects to the database as the
-Postgres user, creates the database, grants permissions to the IAM user, and
-creates the pgvector extension.
+Start by applying the init-db job. This job will:
+- Connect to the Cloud SQL database as the postgres user
+- Create the application database
+- Grant permissions to the IAM user
+- Enable the pgvector extension
 
 ```sh
-k apply -f init-db/k8s/job.yaml
+kubectl apply -f init-db/k8s/job.yaml
 ```
 
-Either monitor that job with k9s, or:
-
 ```sh
-k get jobs
+kubectl get jobs
 ```
 
 Once you see the job is completed, move on to the second job.
 
 ```sh
-k apply -f load-embeddings/k8s/job.yaml
+kubectl apply -f load-embeddings/k8s/job.yaml
 ```
 
 This job takes a few minutes. It needs to parse CSV data, generate text
@@ -204,22 +194,21 @@ using pgvector.
 When that job is done, we're ready to deploy our app:
 
 ```sh
-k apply -f chatbot-api/k8s/deployment.yaml
+kubectl apply -f chatbot-api/k8s/deployment.yaml
 ```
 
 Next, we'll create a load balancer to make the API accessible from the public
-internet. Skip the next two steps if you would rather just set up
-port-forwarding to localhost.
+internet.
 
 ```sh
-k apply -f chatbot-api/k8s/service.yaml
+kubectl apply -f chatbot-api/k8s/service.yaml
 ```
 
 The service deployment will take a bit to provision an external IP address.
 View the progress with:
 
 ```sh
-k get services
+kubectl get services
 ```
 
 Look for `chatbotapi-service` under the `EXTERNAL-IP` field to find the IP.
@@ -227,7 +216,7 @@ Look for `chatbotapi-service` under the `EXTERNAL-IP` field to find the IP.
 
 ### See it work!
 
-Now it's time to test our wiring:
+Now it's time to test :
 
 ```sh
 curl -i <EXTERNAL_IP>
@@ -261,19 +250,17 @@ Now that you're done and want to tear all the infrastructure down, first delete
 the deployment:
 
 ```sh
-k delete -f chatbot-api/k8s/deployment.yaml
+kubectl delete -f chatbot-api/k8s/deployment.yaml
 ```
 
 If you created a load balancer also run:
 
 ```sh
-k delete -f chatbot-api/k8s/service.yaml
+kubectl delete -f chatbot-api/k8s/service.yaml
 ```
 
-Then, clean up the infrastructure. It's possible you might have to run destroy
-twice if you see errors.
-
+Then, clean up the infrastructure. 
 ```sh
 cd terraform
-tf destroy
+terraform destroy
 ```
