@@ -1,4 +1,4 @@
-# Deploy a production ready GenAI app in less than 30 minutes
+# Deploy a production ready GenAI app 
 
 ![name](System-Architecture.png)
 
@@ -8,14 +8,6 @@ Here is a jump start solution of how to build a basic chatbot API that:
 - Demonstrates connectivity to Cloud SQL using Private Service Connect in a VPC
 - Codifies all infrastructure including using Terraform
 - Uses Python with asyncpg and FastAPI
-- (optional) Supports cross-project setups with Cloud SQL and GKE in separate
-  projects
-
-This solution is an operationalized version of a previously published colab,
-[Building AI-powered data-driven applications using pgvector, LangChain and
-LLMs][colab].
-
-[colab]: https://colab.sandbox.google.com/github/GoogleCloudPlatform/python-docs-samples/blob/main/cloud-sql/postgres/pgvector/notebooks/pgvector_gen_ai_demo.ipynb
 
 ## Installation and Setup
 
@@ -24,23 +16,7 @@ To get started you will need to install:
 - gcloud (with a Google Cloud project configured)
 - kubectl (available through gcloud)
 - terraform
-- (optional but very nice) k9s
 
-No one wants to write "terraform" on the CLI. So do this instead to save some
-keystrokes:
-
-```sh
-alias tf="terraform"
-```
-
-Ditto with `kubectl`:
-
-```sh
-alias k="kubectl"
-```
-
-Lastly, make sure you have gcloud pointing at the correct project where you
-want this infrastructure to live:
 
 ```sh
 gcloud config set project <PROJECT_ID>
@@ -77,19 +53,16 @@ Next, run the following to see what changes will be made. You should see a
 diff that includes a single storage bucket.
 
 ```sh
-tf init
-tf plan
+terraform init
+terraform plan
 ```
 
 Next, run:
 
 ```sh
-tf apply
+terraform apply
 ```
 
-For the rest of this guide, we'll assume you're running `tf plan` before `tf
-apply` to ensure the changes match what you expect. Otherwise, we'll omit the
-`tf plan` step below.
 
 Finally, run `tf output` to get the bucket name. Save this for the next step,
 where we will tell the main Terraform deployment where to save state. The
@@ -162,8 +135,7 @@ There are three images we need to build:
 3. `chatbot-api`: A simple JSON API that supports natural language queries.
 
 To build the images, change into each directory named above and run the
-following command. Note for a two project setup these images should be created
-in the GKE cluster project (add `--project=<GKE_PROJECT>` below).
+following command. 
 
 ```sh
 gcloud builds submit --config cloudbuild.yaml --region <YOUR_CHOSEN_REGION>
@@ -182,8 +154,7 @@ Before we deploy anything, we need to update the Kubernetes YAML files to point
 to the images we built above. Right now if you look in any of the job.yaml or
 deployment.yaml files, you'll see the image has a `__PROJECT__` and `__REGION__`
 string in the `image` property. We need to change this. Fortunately, we have a
-script to do this for us. For two project setups, the project name should be the project
-that hosts the GKE cluster and where the images were built above.
+script to do this for us. 
 
 ```sh
 ./scripts/configure-k8s.sh <YOUR_PROJECT_HERE> <YOUR_CHOSEN_REGION>
@@ -203,10 +174,6 @@ gcloud components install gke-gcloud-auth-plugin
 gcloud container clusters get-credentials prod-toy-store-semantic-search \
     --region=<COMPUTE_REGION>
 ```
-
-For more details, see [the docs on connecting kubectl][kubectl-gcloud].
-
-[kubectl-gcloud]: https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl
 
 Once that's done, we should be good to deploy.
 
@@ -257,26 +224,6 @@ k get services
 
 Look for `chatbotapi-service` under the `EXTERNAL-IP` field to find the IP.
 
-#### Port Forward to localhost
-
-Instead of using a load balancer, it's also possible to expose the deployment
-locally and interact with it locally.
-
-First, you need to know the pod name where the deployment is running:
-
-```sh
-k get pods
-```
-
-Find the pod name from that result, and run:
-
-```sh
-k port-forward <POD_NAME> 8080:80
-```
-
-This will start a local listener on port 8080. For all the commands below,
-substitute localhost:8080 for `<EXTERNAL_IP>`. Once you're done, make sure
-to stop the port-forwarding process to close the local listener.
 
 ### See it work!
 
@@ -294,9 +241,6 @@ Next you can run a query against our pgvector data:
 ```sh
 # To send a search do this:
 curl <EXTERNAL_IP>/search --get --data-urlencode "q=indoor games"
-
-# Or using the localhost port forwarding
-curl localhost:8080/search --get --data-urlencode "q=indoor games" | jq .
 ```
 
 That response will be a bunch of matching toy products.
@@ -306,10 +250,6 @@ And finally, we can engage our LLM chatbot like so:
 ```sh
 curl <EXTERNAL_IP>/chatbot --get \
   --data-urlencode "q=what is a good toy for rainy days?"
-
-# Or using the localhost port forwarding
-curl localhost:8080/chatbot --get \
-  --data-urlencode "q=what is a good toy for rainy days?" | jq .
 ```
 
 That response will be from VertexAI and should be a single toy product as
